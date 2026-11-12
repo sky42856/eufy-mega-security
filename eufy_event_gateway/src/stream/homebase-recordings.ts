@@ -170,7 +170,7 @@ export class HomeBaseRecordingReader {
       const fps = (video.length - 1) * 1000 / (last - first);
       if (fps < 1 || fps > 60) throw new Error("HomeBase recording timing was invalid");
       const fragmented = await remuxVideoToMp4(Buffer.concat(video), codec ?? "h264", audio.length ? Buffer.concat(audio) : undefined, lifetime, fps);
-      const media = await finalizeStoredMp4(fragmented, lifetime);
+      const media = await finalizeStoredMp4(fragmented, lifetime, codec === "h265");
       if (media.length > LIMIT || lifetime.aborted) throw new Error("HomeBase recording exceeded its limit");
       await validateStoredMedia(media, lifetime);
       return media;

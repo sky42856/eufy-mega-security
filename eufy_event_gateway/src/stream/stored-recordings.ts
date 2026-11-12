@@ -296,14 +296,18 @@ export async function validateStoredMedia(media: Buffer, signal?: AbortSignal, m
 }
 
 /** Finalize seekable MP4 bytes in an owned temporary directory and remove that directory on every exit. */
-export async function finalizeStoredMp4(fragmented: Buffer, signal?: AbortSignal): Promise<Buffer> {
+/**
+ * `hevcTag` (fork homebase-clips): label H.265 video as "hvc1" (lossless, copy) so Apple
+ * browsers play it; ffmpeg's default "hev1" plays in Chrome/Edge but not Safari/iOS.
+ */
+export async function finalizeStoredMp4(fragmented: Buffer, signal?: AbortSignal, hevcTag = false): Promise<Buffer> {
   if (signal?.aborted) throw new Error("Camera recording operation was cancelled");
   const directory = await mkdtemp(join(tmpdir(), "eufy-stored-"));
   try {
     const target = join(directory, "video.mp4");
     await new Promise<void>((resolve, reject) => {
       const child = spawn("ffmpeg", ["-v", "error", "-i", "pipe:0", "-map", "0", "-c", "copy",
-        "-movflags", "+faststart", target], { stdio: ["pipe", "ignore", "ignore"], signal });
+        ...(hevcTag ? ["-tag:v", "hvc1"] : []), "-movflags", "+faststart", target], { stdio: ["pipe", "ignore", "ignore"], signal });
       const timer = setTimeout(() => child.kill("SIGKILL"), 30_000);
       child.stdin.on("error", () => undefined);
       child.once("error", () => { clearTimeout(timer); reject(new Error("Recording packaging was unavailable")); });

@@ -122,10 +122,14 @@ class EufyRecordingSource(MediaSource):
                     start = dt_util.parse_datetime(record["startTime"])
                     if start is None:
                         raise MediaSourceError("Recording time was invalid")
+                    # Fork (homebase-clips): add the clip length, e.g. "17:09:06 · 18 s"
+                    end = dt_util.parse_datetime(record.get("endTime") or "")
+                    length = int((end - start).total_seconds()) if end and end >= start else None
                     children.append(BrowseMediaSource(
                         domain=DOMAIN, identifier=f"{item.identifier}/{record['id']}",
                         media_class=MediaClass.VIDEO, media_content_type="video/mp4",
-                        title=dt_util.as_local(start).strftime("%H:%M:%S"),
+                        title=dt_util.as_local(start).strftime("%H:%M:%S")
+                        + (f" · {length} s" if length is not None else ""),
                         can_play=True, can_expand=False,
                     ))
             else:
