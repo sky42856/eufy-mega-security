@@ -297,18 +297,25 @@ export async function validateStoredMedia(media: Buffer, signal?: AbortSignal, m
 
 /** Finalize seekable MP4 bytes in an owned temporary directory and remove that directory on every exit. */
 /**
- * `hevcTag` (fork homebase-clips): label H.265 video as "hvc1" (lossless, copy) so Apple
- * browsers play it; ffmpeg's default "hev1" plays in Chrome/Edge but not Safari/iOS.
+ * Fork (homebase-clips):
+ * `hevcTag` labels copied H.265 video as "hvc1" so Apple browsers accept it.
+ * `toH264` re-encodes H.265 to H.264 at half size instead (1152x1296 for the 2304x2592
+ * dual-lens cameras): many Windows/Android browsers and Firefox can't decode H.265 and
+ * show black video with sound. Audio is copied. Uses 3 threads to leave HA a core.
  */
-export async function finalizeStoredMp4(fragmented: Buffer, signal?: AbortSignal, hevcTag = false): Promise<Buffer> {
+export async function finalizeStoredMp4(fragmented: Buffer, signal?: AbortSignal, hevcTag = false, toH264 = false): Promise<Buffer> {
   if (signal?.aborted) throw new Error("Camera recording operation was cancelled");
   const directory = await mkdtemp(join(tmpdir(), "eufy-stored-"));
   try {
     const target = join(directory, "video.mp4");
     await new Promise<void>((resolve, reject) => {
-      const child = spawn("ffmpeg", ["-v", "error", "-i", "pipe:0", "-map", "0", "-c", "copy",
-        ...(hevcTag ? ["-tag:v", "hvc1"] : []), "-movflags", "+faststart", target], { stdio: ["pipe", "ignore", "ignore"], signal });
-      const timer = setTimeout(() => child.kill("SIGKILL"), 30_000);
+      const codec = toH264
+        ? ["-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+          "-vf", "scale=trunc(iw/4)*2:trunc(ih/4)*2", "-threads", "3", "-c:a", "copy"]
+        : ["-map", "0", "-c", "copy", ...(hevcTag ? ["-tag:v", "hvc1"] : [])];
+      const child = spawn("ffmpeg", ["-v", "error", "-i", "pipe:0", ...codec, "-movflags", "+faststart", target],
+        { stdio: ["pipe", "ignore", "ignore"], signal });
+      const timer = setTimeout(() => child.kill("SIGKILL"), toH264 ? 50_000 : 30_000);
       child.stdin.on("error", () => undefined);
       child.once("error", () => { clearTimeout(timer); reject(new Error("Recording packaging was unavailable")); });
       child.once("close", (code) => {
