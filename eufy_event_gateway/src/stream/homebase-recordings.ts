@@ -142,12 +142,18 @@ export class HomeBaseRecordingReader {
       const video: Buffer[] = [], audio: Buffer[] = [];
       const normalizer = new PpcsVideoStreamNormalizer();
       let first: number | undefined, last: number | undefined, authenticated = 0;
+      // Fork (homebase-clips): frame header streamType 1 = H.264 (SoloCam E30), 2 = H.265
+      // (E340/S340), as in live view; one clip must not mix codecs.
+      let codec: "h264" | "h265" | undefined;
       for (const frame of received.frames) {
         if (lifetime.aborted) throw new Error("HomeBase recording operation was cancelled");
         if (frame.command === 1300) {
           const decoded = decoder.video(frame.payload, frame.sign);
           if (!decoded || (frame.sign > 0 && decoded.protection !== "ecc-gcm")) throw new Error("HomeBase recording video authentication failed");
-          const normalized = normalizer.push(decoded.data, "h264");
+          const frameCodec = frame.payload[5] === 2 ? "h265" : "h264";
+          if (codec !== undefined && codec !== frameCodec) throw new Error("HomeBase recording mixed video codecs");
+          codec = frameCodec;
+          const normalized = normalizer.push(decoded.data, frameCodec);
           if (!normalized.length) throw new Error("HomeBase recording video framing was incomplete");
           video.push(normalized);
           if (decoded.protection === "ecc-gcm") authenticated++;
@@ -163,7 +169,7 @@ export class HomeBaseRecordingReader {
       if (video.length < 2 || !authenticated || first === undefined || last === undefined || last <= first) throw new Error("HomeBase recording was incomplete");
       const fps = (video.length - 1) * 1000 / (last - first);
       if (fps < 1 || fps > 60) throw new Error("HomeBase recording timing was invalid");
-      const fragmented = await remuxVideoToMp4(Buffer.concat(video), "h264", audio.length ? Buffer.concat(audio) : undefined, lifetime, fps);
+      const fragmented = await remuxVideoToMp4(Buffer.concat(video), codec ?? "h264", audio.length ? Buffer.concat(audio) : undefined, lifetime, fps);
       const media = await finalizeStoredMp4(fragmented, lifetime);
       if (media.length > LIMIT || lifetime.aborted) throw new Error("HomeBase recording exceeded its limit");
       await validateStoredMedia(media, lifetime);
@@ -202,7 +208,7 @@ export class HomeBaseRecordingReader {
     if (type !== 3 || channel !== this.transport.channel || header[14] !== 25 || ![1300, 1301].includes(command)) return false;
     transfer.bytes += payload.length;
     if (transfer.bytes > LIMIT) transfer.reject(new Error("HomeBase recording exceeded its limit"));
-    else if ((command === 1300 && (payload.length < (sign === 1 ? 179 : 22) || ![0, 1].includes(sign) || payload[5] !== 1 || payload.readUInt32LE(0) !== payload.length - (sign === 1 ? 179 : 22))) || (command === 1301 && (payload.length < 44 || sign !== 1))) {
+    else if ((command === 1300 && (payload.length < (sign === 1 ? 179 : 22) || ![0, 1].includes(sign) || ![1, 2].includes(payload[5]!) || payload.readUInt32LE(0) !== payload.length - (sign === 1 ? 179 : 22))) || (command === 1301 && (payload.length < 44 || sign !== 1))) {
       transfer.reject(new Error("HomeBase recording media framing was unsupported"));
     } else transfer.frames.push({ command, sign, payload: Buffer.from(payload) });
     return true;
