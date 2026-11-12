@@ -74,7 +74,9 @@ export function parseHomeBaseRecordings(value: unknown, serial: string, stationS
 
     // Station history includes siblings. Only the requested child's rows can create references.
     if (row.device_sn !== serial) continue;
-    if (row.device_type !== 88 || row.station_sn !== stationSerial) throw new Error("HomeBase recording history has unexpected ownership");
+    // Fork trial (homebase-clips): E340/S340 children report their own type (not 88); ownership is the
+    // serial match above plus the station below.
+    if (typeof row.device_type !== "number" || row.station_sn !== stationSerial) throw new Error("HomeBase recording history has unexpected ownership");
     if (row.storage_type !== 2 || row.storage_cloud !== 0 || row.write_status !== 1 ||
       typeof row.storage_path !== "string" || !isHomeBaseRecordingPath(row.storage_path)) continue;
     const startTime = recordTime(row.start_time, row.time_zone), endTime = recordTime(row.end_time, row.time_zone);

@@ -2946,7 +2946,10 @@ export class FirstPartyPpcsSession {
 
   #recordingReader(): SoloCamRecordingReader | HomeBaseRecordingReader {
     if (this.#options.homeBaseAttached) {
-      if (this.#options.cameraModel !== "T8171" || this.#options.stationModel !== "T8030" || this.#options.channel !== 1 ||
+      const channel = this.#options.channel;
+      const trial = ["T8425", "T8170"].includes(this.#options.cameraModel ?? "")  // fork trial (homebase-clips)
+        && typeof channel === "number" && Number.isInteger(channel) && channel >= 0 && channel <= 31;
+      if (!(trial || (this.#options.cameraModel === "T8171" && channel === 1)) || this.#options.stationModel !== "T8030" ||
         !this.#options.recordingCameraSerial || this.#options.purpose !== "control" || !this.#options.accountId) {
         throw new Error("Stored recordings require the verified SoloCam HomeBase route");
       }

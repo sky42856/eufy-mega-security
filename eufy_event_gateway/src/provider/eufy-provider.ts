@@ -594,7 +594,24 @@ export function supportsSoloCamStoredRecordings(
   return supportsStandalonePanControl(device, route, routeReady) ||
     supportsStandaloneC31Presets(device, route, routeReady) ||
     (device.model === "T8171" && device.deviceType === 88 && device.channel === 1 && Boolean(device.adminUserId) && routeReady &&
-      route?.homeBaseAttached === true && route.peer.model === "T8030" && route.peer.serial !== device.serial);
+      route?.homeBaseAttached === true && route.peer.model === "T8030" && route.peer.serial !== device.serial) ||
+    supportsHomeBaseChildStoredRecordings(device, route, routeReady);
+}
+
+/**
+ * Fork trial (homebase-clips): the HomeBase 3 history/download route is not model specific,
+ * so also admit Floodlight Cam E340 (T8425) and SoloCam S340 (T8170) children on their own
+ * HomeBase channel. Unverified upstream; failures surface as ordinary recording errors.
+ */
+export const HOMEBASE_CLIP_TRIAL_MODELS: readonly string[] = ["T8425", "T8170"];
+export function supportsHomeBaseChildStoredRecordings(
+  device: Pick<MegaInventoryDevice, "serial" | "model" | "channel" | "adminUserId">,
+  route: Pick<PpcsStreamRoute, "homeBaseAttached" | "peer"> | null,
+  routeReady: boolean,
+): boolean {
+  return HOMEBASE_CLIP_TRIAL_MODELS.includes(device.model ?? "") && device.channel !== null && Number.isInteger(device.channel)
+    && device.channel! >= 0 && device.channel! <= 31 && Boolean(device.adminUserId) && routeReady
+    && route?.homeBaseAttached === true && route.peer.model === "T8030" && route.peer.serial !== device.serial;
 }
 
 /** Admit only the observed T8210/type-7 HomeBase 3 metadata route, independently of media support. */
