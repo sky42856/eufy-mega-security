@@ -35,6 +35,14 @@ export EUFY_GATEWAY_EXPERIMENTAL_NVR_REGION="$(jq -r '.experimental_nvr_region /
 export EUFY_GATEWAY_EXPERIMENTAL_S340_SMOOTH_LIVE="$(jq -r '.experimental_s340_smooth_live // false' "$options")"
 export EUFY_GATEWAY_EXPERIMENTAL_FIXED_H265_RESOLUTION="$(jq -r '.experimental_fixed_h265_resolution // false' "$options")"
 export EUFY_GATEWAY_EXPERIMENTAL_LOW_CPU_H265_CONVERSION="$(jq -r '.experimental_low_cpu_h265_conversion // false' "$options")"
+# Fork (homebase-clips): optionally reuse an existing gateway API token (e.g. the official
+# add-on's), so Home Assistant and other API clients keep working after switching add-ons.
+token_override="$(jq -r '.api_token_override // empty' "$options")"
+if printf '%s' "$token_override" | grep -Eq '^[A-Za-z0-9]{32,128}$'; then
+  umask 077
+  printf '%s' "$token_override" > "${token_file}.tmp"
+  mv "${token_file}.tmp" "$token_file"
+fi
 if [ ! -s "$token_file" ]; then
   umask 077
   token_tmp="${token_file}.tmp"

@@ -1,5 +1,5 @@
 name: Eufy Mega Security (HomeBase clips fork)
-version: "0.1.260-hb1"
+version: "0.1.260-hb2"
 slug: eufy_event_gateway
 description: Event-first Eufy camera bridge for Home Assistant
 url: https://github.com/mscodemonkey/eufy-mega-security
@@ -49,6 +49,7 @@ schema:
   password: password
   country: str
   verification_code: str
+  api_token_override: password?
   experimental_event_image_request: bool?
   experimental_homebase_event_images: bool?
   experimental_homebase_event_names: bool?
