@@ -1395,7 +1395,10 @@ export class GatewayServer {
     }
     const id = segments[4] ?? "";
     if (!/^[a-f0-9]{64}$/.test(id)) return json(response, 404, { error: "Recording not found" });
-    const key = `${serial}\0${id}`;
+    // Fork (homebase-clips): ?format=original skips the browser (H.264) conversion, e.g. for
+    // the wall panel, which re-encodes anyway. Each format is prepared and cached separately.
+    const original = url.searchParams.get("format") === "original";
+    const key = `${serial}\0${id}${original ? "\0original" : ""}`;
     if (request.method === "POST" && segments.length === 6 && segments[5] === "prepare") {
       const cached = this.#recordings.get(key);
       if (cached) { this.#recordings.put(key, cached); return json(response, 200, { ready: true }); }
@@ -1403,7 +1406,7 @@ export class GatewayServer {
       if (!job) {
         if (this.#recordingJobs.size >= 2) return json(response, 409, { error: "Recording retrieval is busy. Please try again shortly" });
         const controller = new AbortController();
-        const promise = this.provider.downloadStoredRecording(serial, id, controller.signal);
+        const promise = this.provider.downloadStoredRecording(serial, id, controller.signal, { browserCompatible: !original });
         job = { promise, controller, users: new Set() };
         this.#recordingJobs.set(key, job);
         void promise.finally(() => this.#recordingJobs.delete(key)).catch(() => undefined);

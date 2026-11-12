@@ -120,7 +120,7 @@ export class HomeBaseRecordingReader {
 
 
   /** Download one opaque-reference-owned clip with a new recipient key and verify every media track. */
-  async download(record: CameraStoredRecord, signal?: AbortSignal): Promise<Buffer> {
+  async download(record: CameraStoredRecord, signal?: AbortSignal, options?: { readonly browserCompatible?: boolean }): Promise<Buffer> {
     this.#idle(signal);
     if (!isHomeBaseRecordingPath(record.storagePath)) throw new Error("Invalid HomeBase recording reference");
     const recipient = createECDH("prime256v1"), publicKey = recipient.generateKeys().subarray(1).toString("hex");
@@ -171,7 +171,8 @@ export class HomeBaseRecordingReader {
       if (fps < 1 || fps > 60) throw new Error("HomeBase recording timing was invalid");
       const fragmented = await remuxVideoToMp4(Buffer.concat(video), codec ?? "h264", audio.length ? Buffer.concat(audio) : undefined, lifetime, fps);
       // fork: H.265 clips go out as H.264 so every browser can play them
-      const media = await finalizeStoredMp4(fragmented, lifetime, false, codec === "h265");
+      const convert = codec === "h265" && options?.browserCompatible !== false;
+      const media = await finalizeStoredMp4(fragmented, lifetime, codec === "h265" && !convert, convert);
       if (media.length > LIMIT || lifetime.aborted) throw new Error("HomeBase recording exceeded its limit");
       await validateStoredMedia(media, lifetime);
       return media;

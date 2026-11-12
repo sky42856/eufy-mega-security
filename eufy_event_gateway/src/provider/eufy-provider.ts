@@ -1468,13 +1468,13 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
   }
 
   /** Resolve an opaque owned reference only while its verified storage route remains available. */
-  async downloadStoredRecording(serial: string, id: string, signal?: AbortSignal): Promise<Buffer | null> {
+  async downloadStoredRecording(serial: string, id: string, signal?: AbortSignal, options?: { readonly browserCompatible?: boolean }): Promise<Buffer | null> {
     this.#assertRtcPreparationIdle();
     this.#assertLegacyCamera(serial);
     const reference = this.#recordingReferences.get(id);
     if (!reference || reference.serial !== serial || reference.expiresAt <= Date.now()) return null;
     return await this.#recordingOperation(serial, signal,
-      async (session) => await session.downloadStoredRecording(reference.record, signal));
+      async (session) => await session.downloadStoredRecording(reference.record, signal, options));
   }
 
   async #recordingOperation<T>(serial: string, signal: AbortSignal | undefined,

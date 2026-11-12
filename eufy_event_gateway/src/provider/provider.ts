@@ -44,6 +44,9 @@ export class GeneralRtcPreparationError extends Error {
 }
 
 /** Callbacks through which a provider reports normalized observations. */
+/** Fork (homebase-clips): browserCompatible=false keeps the camera codec (no H.264 conversion). */
+export interface StoredRecordingOptions { readonly browserCompatible?: boolean }
+
 export interface ProviderEvents {
 
   /** Replace the separately owned lock inventory; optional for older/simulated adapters. */
@@ -171,7 +174,7 @@ export interface CameraProvider {
   diagnoseEventPicture?(serial: string, date: string, startId: string, recordId: string | undefined, signal: AbortSignal, recordingPath?: string): Promise<EventPictureSummary>;
 
   /** Retrieve a previously listed opaque ID; null means the reference expired or is unknown. */
-  downloadStoredRecording?(serial: string, id: string, signal?: AbortSignal): Promise<Buffer | null>;
+  downloadStoredRecording?(serial: string, id: string, signal?: AbortSignal, options?: StoredRecordingOptions): Promise<Buffer | null>;
   /** Optional read-only cloud metadata, independent of local station storage. */
   cloudHistory?(serial: string, query: CloudHistoryQuery): Promise<readonly CloudHistoryRecord[]>;
 

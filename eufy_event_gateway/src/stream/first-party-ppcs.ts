@@ -2938,10 +2938,10 @@ export class FirstPartyPpcsSession {
   }
 
   /** Retrieve a provider-owned recording reference and verify all returned media tracks. */
-  async downloadStoredRecording(record: CameraStoredRecord, signal?: AbortSignal): Promise<Buffer> {
+  async downloadStoredRecording(record: CameraStoredRecord, signal?: AbortSignal, options?: { readonly browserCompatible?: boolean }): Promise<Buffer> {
     const reader = this.#recordingReader();
     await this.#waitForLevel2Key();
-    return await reader.download(record, signal);
+    return reader instanceof HomeBaseRecordingReader ? await reader.download(record, signal, options) : await reader.download(record, signal);
   }
 
   #recordingReader(): SoloCamRecordingReader | HomeBaseRecordingReader {
