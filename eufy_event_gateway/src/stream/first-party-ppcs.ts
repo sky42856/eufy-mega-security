@@ -2330,7 +2330,11 @@ export class FirstPartyPpcsSession {
     current();
     const frame = buildModelControlTrialPayload(request, route, this.#options.accountId,
       commandKey(this.#options.stationSerial, this.#options.p2pDid), this.#level2Key, this.#level2Seq++, Date.now());
-    const acknowledgement = this.#waitForControlResult(frame.command, this.#options.channel, CONTROL_TIMEOUT_MILLISECONDS,
+    // Fork (hb11): HomeBase-3 E340/S340 never acknowledge the manual light; don't hold the
+    // HomeBase 10 s for a reply that can't come (the transport still delivers the frame).
+    const silentLight = request.action === "manualLight" && route.homeBaseAttached
+      && ((route.model === "T8425" && route.deviceType === 47) || (route.model === "T8170" && route.deviceType === 48));
+    const acknowledgement = this.#waitForControlResult(frame.command, this.#options.channel, silentLight ? 2_500 : CONTROL_TIMEOUT_MILLISECONDS,
       request.action === "manualLight" && !legacyLight, legacyLight);
     try { onDispatch(); this.#sendCommand(frame.command, frame.payload); }
     catch (error) { void acknowledgement.catch(() => undefined); throw error; }

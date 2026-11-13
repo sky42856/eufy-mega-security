@@ -5630,7 +5630,37 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
    * Experimental manual-light failures retain unknown state and emit the same
    * fixed diagnostic as the separate trial endpoint after trial cleanup.
    */
+  /** Fork (hb11): HomeBase-3 E340/S340 light presses queue per HomeBase instead of failing
+   *  with "Wait for the model control trial to finish" when tapped in quick succession. A
+   *  start-up/busy refusal is retried for up to ~20 s. */
   setCameraLight(serial: string, enabled: boolean): Promise<void> {
+    const device = this.#devices.get(serial);
+    if (!device || !((device.model === "T8425" && device.deviceType === 47) || (device.model === "T8170" && device.deviceType === 48))
+      || !device.parentSerial || device.parentSerial === serial) return this.#setCameraLightNow(serial, enabled);
+    const peer = device.parentSerial;
+    const run = async (): Promise<void> => {
+      const until = Date.now() + 20_000;
+      for (;;) {
+        while (this.#trialPeers.has(peer) && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 250));
+        try { return await this.#setCameraLightNow(serial, enabled); }
+        catch (error) {
+          const busy = error instanceof S120LightTrialError && error.stage === "busy"
+            || error instanceof Error && error.message === "Wait for the model control trial to finish";
+          if (!busy || Date.now() >= until) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1_500));
+        }
+      }
+    };
+    const previous = this.#forkLightQueue.get(peer) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(run);
+    this.#forkLightQueue.set(peer, current);
+    void current.finally(() => { if (this.#forkLightQueue.get(peer) === current) this.#forkLightQueue.delete(peer); }).catch(() => undefined);
+    return current;
+  }
+
+  readonly #forkLightQueue = new Map<string, Promise<void>>();
+
+  #setCameraLightNow(serial: string, enabled: boolean): Promise<void> {
     this.#assertRtcPreparationIdle();
     this.#assertLegacyCamera(serial);
     this.#assertNoModelTrial(serial);
