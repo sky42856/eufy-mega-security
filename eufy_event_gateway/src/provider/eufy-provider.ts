@@ -238,6 +238,9 @@ export interface MegaInventoryDevice {
 /** Allowlisted, validated current values retained from one Mega inventory row. */
 export interface MegaInventoryReads {
 
+  /** Fork (hb16): raw cloud param 1400 (manual light) of HomeBase-3 T8425/T8170, to test whether it tracks the lamp. */
+  readonly forkLight1400Raw?: string;
+
   /** Exact standalone T8426 manual override, without inferring physical illumination. */
   readonly manualFloodlightEnabled?: boolean;
 
@@ -5476,6 +5479,7 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
         enhanceLightingEnabled: device.reads.enhanceLightingEnabled ?? null,
         lightBrightness: device.reads.lightBrightness ?? null,
         manualFloodlightEnabled: device.reads.manualFloodlightEnabled ?? null,
+        forkLight1400Raw: device.reads.forkLight1400Raw ?? null,
         notificationIntervalMinutes: device.reads.notificationIntervalMinutes ?? null,
         rtspPublicationEnabled: device.reads.rtspPublicationEnabled ?? null,
         continuousRecordingEnabled: device.reads.continuousRecordingEnabled ?? null,
@@ -7001,6 +7005,17 @@ export function safeInventoryReads(value: unknown, deviceType: number | null = n
   });
   const motionStep = readCameraSetting(settingRows, model ?? "", deviceType, standaloneChannelZero, "motionSensitivity");
   const manualFloodlight = readCameraSetting(settingRows, model ?? "", deviceType, standaloneChannelZero, "manualFloodlight");
+  // Fork (hb16): expose the HomeBase-3 E340/S340 manual-light param (1400) for the light switch.
+  const forkLightModel = (model === "T8425" && deviceType === 47) || (model === "T8170" && deviceType === 48);
+  const forkLightRaw = forkLightModel && params.has(1400) ? params.get(1400) : undefined;
+  const forkLightText = forkLightRaw === undefined ? undefined
+    : (typeof forkLightRaw === "string" ? forkLightRaw : JSON.stringify(forkLightRaw) ?? String(forkLightRaw)).slice(0, 300);
+  let forkLightOn: boolean | undefined;
+  if (forkLightText !== undefined) {
+    const n = Number(forkLightText);
+    if (forkLightText.trim() !== "" && Number.isFinite(n) && (n === 0 || n === 1)) forkLightOn = n === 1;
+    else { try { const j = JSON.parse(forkLightText); const v = j?.value ?? j?.data?.value ?? j?.open; if (v === 0 || v === 1) forkLightOn = v === 1; } catch { /* raw only */ } }
+  }
   const reviewedChime = readCameraSetting(settingRows, model ?? "", deviceType, standaloneChannelZero, "homebaseChime");
   const percentage = (type: number): number | undefined => {
     const parsed = finiteNumber(params.get(type));
@@ -7142,6 +7157,8 @@ export function safeInventoryReads(value: unknown, deviceType: number | null = n
     ...(antiTheft === 0 || antiTheft === 1 ? { antiTheftDetectionEnabled: antiTheft === 1 } : {}),
     ...(spotlight === 0 || spotlight === 1 ? { spotlightEnabled: spotlight === 1 } : {}),
     ...(typeof manualFloodlight === "boolean" ? { manualFloodlightEnabled: manualFloodlight } : {}),
+    ...(typeof forkLightOn === "boolean" ? { manualFloodlightEnabled: forkLightOn } : {}),
+    ...(forkLightText !== undefined ? { forkLight1400Raw: forkLightText } : {}),
     ...(typeof motionStep === "number" ? { motionSensitivityStep: motionStep } : {}),
     ...(sensitivity !== null && Number.isInteger(sensitivity) && sensitivity >= 1 && sensitivity <= 7
       ? { motionSensitivityRaw: sensitivity } : {}),

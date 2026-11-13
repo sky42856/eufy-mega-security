@@ -77,6 +77,9 @@ export interface CameraAudioSettings {
 /** Inventory configuration only, not live image orientation, lamp output or sound events. */
 export interface CameraReportedSettings {
 
+  /** Fork (hb16): raw cloud param 1400 (manual light) for HomeBase-3 T8425/T8170. */
+  readonly forkLight1400Raw?: string | null;
+
   /** T8426 manual override setting, distinct from motion-driven illumination or physical lamp output. */
   readonly manualFloodlightEnabled?: boolean | null;
 
