@@ -4045,7 +4045,14 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
       current();
       logger.info("model_control_trial_result", `Model control trial: model=${safeLogModel(device.model)} action=manualLight outcome=acknowledged physical_confirmation_required=true`);
       return { outcome: "acknowledged", physicalConfirmationRequired: true };
-    } catch {
+    } catch (error) {
+      // Fork (hb10): HomeBase-3 E340/S340 switch the light but never acknowledge command
+      // 1400 (user-confirmed 2026-11-13); a delivered write that only timed out is success.
+      if (writeAttempted && error instanceof CameraControlAcknowledgementTimeoutError
+        && ((device.model === "T8425" && device.deviceType === 47) || (device.model === "T8170" && device.deviceType === 48))) {
+        logger.info("model_control_trial_result", `Model control trial: model=${safeLogModel(device.model)} action=manualLight outcome=sent_unacknowledged physical_confirmation_required=true`);
+        return { outcome: "acknowledged", physicalConfirmationRequired: true };
+      }
       failedStage = stage;
       throw unknown();
     } finally {
