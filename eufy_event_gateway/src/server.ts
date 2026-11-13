@@ -8,6 +8,7 @@
  * module owns request authentication, response framing, and route selection;
  * it does not parse Mega payloads or open camera sockets.
  */
+import { forkLightVariant } from "./stream/first-party-ppcs.js";
 import { validQuickResponseId } from "./provider/quick-responses.js";
 import { SharedLensSnapshotCache, type SharedLens } from "./stream/shared-lens-views.js";
 import { rawHistoryStatus, rawHistoryFiles, rawHistoryPrivateFile } from "./diagnostics/raw-history.js";
@@ -1559,6 +1560,7 @@ export class GatewayServer {
   async #cameraLight(request: IncomingMessage, serial: string, response: ServerResponse): Promise<void> {
     if (!this.state.hasCamera(serial)) return json(response, 404, { error: "Camera not found" });
     const body = await readJson(request);
+    forkLightVariant.value = typeof body.variant === "string" && /^[a-z0-9_]{1,16}$/.test(body.variant) ? body.variant : "int";
     await this.provider.setCameraLight(serial, requiredBoolean(body.enabled));
     return json(response, 200, { ok: true });
   }

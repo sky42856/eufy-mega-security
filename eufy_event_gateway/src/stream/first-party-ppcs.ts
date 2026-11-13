@@ -793,8 +793,20 @@ export function buildModelControlTrialPayload(
     // the channel first, so on channel 1 every command read as "on" (user: off didn't work).
     const forkLight = request.action === "manualLight" && frame.command === 1400 && typeof frame.value === "boolean"
       && ((route.model === "T8425" && route.deviceType === 47) || (route.model === "T8170" && route.deviceType === 48));
-    const plain = forkLight ? buildManualLightIntStringBody(route.channel!, frame.value as boolean, accountId)
-      : typeof frame.value === "boolean" ? buildCameraEnableBody(route.channel!, frame.value ? 1 : 0, accountId) : Buffer.from(frame.value);
+    if (forkLight) {
+      // Fork (hb13): selectable wire format while the HomeBase-3 E340/S340 light is being reverse-engineered.
+      const on = frame.value as boolean, ch = route.channel!, v = on ? 1 : 0;
+      const pick = forkLightVariant.value;
+      const json = (o: unknown): Buffer => Buffer.from(JSON.stringify(o));
+      const [command, plain]: [number, Buffer] =
+        pick === "int_old" ? [1400, buildCameraEnableBody(ch, v, accountId)]
+        : pick === "json1700" ? [1700, json({ commandType: 1400, data: { time: 0, type: 2, value: v } })]
+        : pick === "p1350" ? [1350, json({ account_id: accountId, cmd: 1400, mChannel: ch, mValue3: 0, payload: { time: 0, type: 2, value: v } })]
+        : pick === "p1350v" ? [1350, json({ account_id: accountId, cmd: 1400, mChannel: ch, mValue3: 0, payload: { value: v } })]
+        : [1400, buildManualLightIntStringBody(ch, on, accountId)];
+      return { command, payload: rawPayload(encryptLevel2(plain, level2Key, sequence), ch, 8, [8, 0], 0) };
+    }
+    const plain = typeof frame.value === "boolean" ? buildCameraEnableBody(route.channel!, frame.value ? 1 : 0, accountId) : Buffer.from(frame.value);
     return { command: frame.command, payload: rawPayload(encryptLevel2(plain, level2Key, sequence), route.channel!, 8, [8, 0], 0) };
   }
   return { command: frame.command, payload: buildStandaloneJsonControlPayload(String(frame.value), route.channel!, legacyKey) };
@@ -4254,6 +4266,9 @@ export function buildStandaloneCameraLightBody(
  * Callers validate the command-specific meaning of `value`. This helper owns
  * only the binary layout shared by enablement and motion-detection commands.
  */
+/** Fork: light wire-format selector, set per request by the /light endpoint (default "int"). */
+export const forkLightVariant: { value: string } = { value: "int" };
+
 /** Fork: manual light int-string body = value, valueSub (channel), 128-byte admin id. */
 export function buildManualLightIntStringBody(channel: number, enabled: boolean, accountId: string): Buffer {
   if (!accountId) throw new Error("Camera control requires a non-empty account identity");
