@@ -163,6 +163,11 @@ export function modelControlTrialActions(route: ModelControlRoute): readonly Mod
   if (isL40ManualLightTrialRoute(route)) return ["manualLight"];
   if (route.homeBaseAttached) {
     if (isE330ManualLightTrialRoute(route)) return ["manualLight"];
+    // Fork (hb7): Floodlight Cam E340 T8425/47 and SoloCam S340 T8170/48 children of a
+    // HomeBase 3 use the same attached manual-light command (1400, level-2 envelope) as the S120.
+    if (((route.model === "T8425" && route.deviceType === 47) || (route.model === "T8170" && route.deviceType === 48))
+      && route.peerModel === "T8030" && !route.selfPeer && route.channel !== null
+      && Number.isInteger(route.channel) && route.channel >= 0 && route.channel <= 254) return ["manualLight"];
     if (route.model === "T81A0" && route.deviceType === 10005 && route.peerModel === "T8030"
       && route.peerDeviceType === 18 && !route.selfPeer && route.channel !== null
       && Number.isInteger(route.channel) && route.channel >= 0 && route.channel <= 254) return ["manualLight"];
