@@ -3561,7 +3561,9 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
     if (!device.adminUserId) return { actions: [], unavailableReason: "owner_account_required" };
     const actions = modelControlTrialActions(this.#modelTrialRoute(device, route));
     if (!actions.length) return { actions: [], unavailableReason: "unsupported_identity" };
-    if (device.model === "T8425" && (!this.config.apiAuthenticationConfigured
+    // Fork (hb9): the owner-only gate is for the standalone T8425 trials (pan/tilt); its
+    // HomeBase-3 manual light goes through the shared-admin check below.
+    if (device.model === "T8425" && !route.homeBaseAttached && (!this.config.apiAuthenticationConfigured
       || route.peer.adminUserId !== device.adminUserId || !this.#client.isAuthenticatedUser(device.adminUserId))) {
       return { actions: [], unavailableReason: "owner_account_required" };
     }
