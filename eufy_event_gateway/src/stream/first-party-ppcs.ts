@@ -788,7 +788,13 @@ export function buildModelControlTrialPayload(
   }
   if (frame.command === 1403 || frame.command === 1350 || route.homeBaseAttached) {
     if (!level2Key || level2Key.length !== 32) throw new Error("Model control trial requires negotiated level-two encryption");
-    const plain = typeof frame.value === "boolean" ? buildCameraEnableBody(route.channel!, frame.value ? 1 : 0, accountId) : Buffer.from(frame.value);
+    // Fork (hb12): CMD_SET_FLOODLIGHT_MANUAL_SWITCH (1400) is int-string value=on/off,
+    // valueSub=channel (eufy-security-client switchLight). The camera-enable layout below puts
+    // the channel first, so on channel 1 every command read as "on" (user: off didn't work).
+    const forkLight = request.action === "manualLight" && frame.command === 1400 && typeof frame.value === "boolean"
+      && ((route.model === "T8425" && route.deviceType === 47) || (route.model === "T8170" && route.deviceType === 48));
+    const plain = forkLight ? buildManualLightIntStringBody(route.channel!, frame.value as boolean, accountId)
+      : typeof frame.value === "boolean" ? buildCameraEnableBody(route.channel!, frame.value ? 1 : 0, accountId) : Buffer.from(frame.value);
     return { command: frame.command, payload: rawPayload(encryptLevel2(plain, level2Key, sequence), route.channel!, 8, [8, 0], 0) };
   }
   return { command: frame.command, payload: buildStandaloneJsonControlPayload(String(frame.value), route.channel!, legacyKey) };
@@ -4248,6 +4254,16 @@ export function buildStandaloneCameraLightBody(
  * Callers validate the command-specific meaning of `value`. This helper owns
  * only the binary layout shared by enablement and motion-detection commands.
  */
+/** Fork: manual light int-string body = value, valueSub (channel), 128-byte admin id. */
+export function buildManualLightIntStringBody(channel: number, enabled: boolean, accountId: string): Buffer {
+  if (!accountId) throw new Error("Camera control requires a non-empty account identity");
+  const body = Buffer.alloc(8 + 128);
+  body.writeUInt32LE(enabled ? 1 : 0, 0);
+  body.writeUInt32LE(channel, 4);
+  body.write(accountId.slice(0, 128), 8, "ascii");
+  return body;
+}
+
 export function buildCameraEnableBody(channel: number, value: number, accountId: string): Buffer {
   if (!accountId) throw new Error("Camera control requires a non-empty account identity");
   const body = Buffer.alloc(8 + 128);
