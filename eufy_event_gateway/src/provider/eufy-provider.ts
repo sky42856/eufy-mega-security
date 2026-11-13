@@ -3574,7 +3574,7 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
       return { actions: [], unavailableReason: "owner_account_required" };
     }
     if (actions.includes("manualLight") && (route.peer.adminUserId !== device.adminUserId
-      || !this.#client.isAuthenticatedUser(device.adminUserId)
+      || !this.#lightAccountOk(device)
       || route.homeBaseAttached && [...this.#devices.values()].filter(row => row.parentSerial === route.peer.serial && row.channel === device.channel).length !== 1)) {
       return { actions: [], unavailableReason: "owner_account_required" };
     }
@@ -3951,6 +3951,16 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
   }
 
   /** Own one opt-in manual-light write and its cleanup without claiming reported or physical light state. */
+  /** Fork (hb7): HomeBase-3 E340/S340 lights also accept a signed-in account the owner shared
+   *  the devices with as admin (its user id differs from admin_user_id); the command still
+   *  carries the owner's admin id, as the Eufy app and eufy-security-client do. */
+  #lightAccountOk(device: MegaInventoryDevice): boolean {
+    if (!device.adminUserId) return false;
+    if (this.#client.isAuthenticatedUser(device.adminUserId)) return true;
+    return this.#client.authenticatedBinding() !== null
+      && ((device.model === "T8425" && device.deviceType === 47) || (device.model === "T8170" && device.deviceType === 48));
+  }
+
   async #performManualLightTrial(serial: string, request: Extract<ModelControlTrial, { action: "manualLight" }>,
     signal?: AbortSignal): Promise<ModelControlTrialResult> {
     let stage: S120LightFailureStage = "admission", failedStage: S120LightFailureStage | undefined;
@@ -3962,7 +3972,7 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
     if (!this.config.experimentalModelControls || !device || !peer || !route
       || !modelControlTrialActions(this.#modelTrialRoute(device, route)).includes("manualLight")
       || !device.adminUserId || device.adminUserId !== peer.adminUserId
-      || !this.#client.isAuthenticatedUser(device.adminUserId) || signal?.aborted || this.#recordingClosing
+      || !this.#lightAccountOk(device) || signal?.aborted || this.#recordingClosing
       || !isPpcsRouteReady(device, this.#devices, new Set(this.#dskKeys.keys()))) throw unknown();
     stage = "busy";
     const controls = [this.#cameraOperations, this.#cameraCapabilityOperations, this.#streamingQualityOperations,
@@ -3990,7 +4000,7 @@ export class EufyProvider implements CameraProvider, CaptchaProvider {
     };
     const current = (): void => {
       if (controller.signal.aborted || signal?.aborted || this.#recordingClosing || generation !== this.#startupGeneration
-        || (session !== null && session.stats.closeReason !== "open") || !this.#client.isAuthenticatedUser(device.adminUserId!) || !valid([...this.#devices.values()])) throw unknown();
+        || (session !== null && session.stats.closeReason !== "open") || !this.#lightAccountOk(device) || !valid([...this.#devices.values()])) throw unknown();
     };
     const owned = async <T>(operation: () => Promise<T>): Promise<T> => {
       current();
