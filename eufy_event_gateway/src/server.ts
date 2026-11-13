@@ -1560,7 +1560,7 @@ export class GatewayServer {
   async #cameraLight(request: IncomingMessage, serial: string, response: ServerResponse): Promise<void> {
     if (!this.state.hasCamera(serial)) return json(response, 404, { error: "Camera not found" });
     const body = await readJson(request);
-    forkLightVariant.value = typeof body.variant === "string" && /^[a-z0-9_]{1,16}$/.test(body.variant) ? body.variant : "int";
+    forkLightVariant.value = typeof body.variant === "string" && /^[a-z0-9_]{1,16}$/.test(body.variant) ? body.variant : "auto";
     await this.provider.setCameraLight(serial, requiredBoolean(body.enabled));
     return json(response, 200, { ok: true });
   }

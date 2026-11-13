@@ -796,7 +796,10 @@ export function buildModelControlTrialPayload(
     if (forkLight) {
       // Fork (hb13): selectable wire format while the HomeBase-3 E340/S340 light is being reverse-engineered.
       const on = frame.value as boolean, ch = route.channel!, v = on ? 1 : 0;
-      const pick = forkLightVariant.value;
+      // User-tested 2026-11-13 on Front Door (T8425 via HomeBase 3): int_old and json1700 switch
+      // on AND off; int, p1350, p1350v do nothing. Default: T8425 json1700, T8170 int_old.
+      const pick = forkLightVariant.value !== "auto" ? forkLightVariant.value
+        : route.model === "T8425" ? "json1700" : "int_old";
       const json = (o: unknown): Buffer => Buffer.from(JSON.stringify(o));
       const [command, plain]: [number, Buffer] =
         pick === "int_old" ? [1400, buildCameraEnableBody(ch, v, accountId)]
@@ -4267,7 +4270,7 @@ export function buildStandaloneCameraLightBody(
  * only the binary layout shared by enablement and motion-detection commands.
  */
 /** Fork: light wire-format selector, set per request by the /light endpoint (default "int"). */
-export const forkLightVariant: { value: string } = { value: "int" };
+export const forkLightVariant: { value: string } = { value: "auto" };
 
 /** Fork: manual light int-string body = value, valueSub (channel), 128-byte admin id. */
 export function buildManualLightIntStringBody(channel: number, enabled: boolean, accountId: string): Buffer {
